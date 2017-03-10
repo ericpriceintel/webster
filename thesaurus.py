@@ -40,15 +40,20 @@ def probabilities(keywords, docs):
     """
     counts = defaultdict(int)
     associations = defaultdict(int)
+    ordered_keywords = list(keywords)
 
     for doc in docs:
         for i, keyword in enumerate(keywords):
             if keyword in doc:
                 counts[keyword] += 1
 
-        for word1, word2 in combinations_with_replacement(keywords, 2):
-            if word1 in doc and word2 in doc:
-                associations[(word1, word2)] += 1
+        for i, word1 in enumerate(ordered_keywords):
+            if word1 not in doc:
+                continue
+
+            for word2 in ordered_keywords[i:]:
+                if word2 in doc:
+                    associations[(word1, word2)] += 1
 
     return counts, associations
 
@@ -115,32 +120,19 @@ if __name__ == '__main__':
         w for w in set.union(*docs) ^ exclude
         if len(w) > 2 and not w.startswith('http')}
 
-    print(len(keywords))
+    print("There are %s distinct keywords in this dataset." % len(keywords))
 
-    # import time
+    counts, associations = probabilities(keywords, docs)
 
-    # start_time = time.time()
+    lookup = {word: i for i, word in enumerate(keywords)}
 
-    # counts, associations = probabilities(keywords, docs)
+    matrix = build_matrix(lookup, keywords, counts, associations)
 
-    # assoc_time = time.time()
-    # print('Finished association calculations in %s secs' % (assoc_time - start_time))
+    u, s, v = linalg.svds(matrix, k=DIMS)
 
-    # lookup = {word: i for i, word in enumerate(keywords)}
+    # np.savetxt('test.csv', matrix.todense(), delimiter=',')
 
-    # matrix = build_matrix(lookup, keywords, counts, associations)
+    word_vec = build_word_vec(lookup, search_term)
+    similarities = calc_similarities(word_vec, u, np.diag(s), v)
 
-    # matrix_time = time.time()
-    # print('Finished building matrix in %s secs' % (matrix_time - assoc_time))
-
-    # u, s, v = linalg.svds(matrix, k=DIMS)
-
-    # svd_time = time.time()
-    # print('Finished SVD in %s secs' % (svd_time - matrix_time))
-
-    # # np.savetxt('test.csv', matrix.todense(), delimiter=',')
-
-    # word_vec = build_word_vec(lookup, search_term)
-    # similarities = calc_similarities(word_vec, u, np.diag(s), v)
-
-    # display_likeness(lookup, similarities)
+    display_likeness(lookup, similarities)
