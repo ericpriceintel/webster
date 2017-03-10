@@ -1,6 +1,7 @@
 
 from collections import defaultdict
 from itertools import combinations_with_replacement
+import string
 import sys
 
 import numpy as np
@@ -8,16 +9,27 @@ from scipy import sparse
 from scipy.sparse import linalg
 
 
-DIMS = 10
+DIMS = 100
+EXCLUDE_DIR = 'exclude.txt'
 
 
-def read_document(filename):
+def read_tweets(filename):
 
     with open(filename) as f:
         tweets = map(lambda s: s.strip().split(), f.readlines())
-        docs = [set(map(lambda s: s.lower(), tweet)) for tweet in tweets]
+        table = str.maketrans('', '', string.punctuation + string.digits)
+        docs = [
+            set(map(lambda s: s.lower().translate(table), tweet))
+            for tweet in tweets]
 
     return docs
+
+
+def read_exclude():
+    with open(EXCLUDE_DIR) as f:
+        exclude = set([word.strip() for word in f])
+
+    return exclude
 
 
 def probabilities(keywords, docs):
@@ -45,7 +57,7 @@ def build_matrix(lookup, keywords, counts, assocs):
     """Build the PPMI matrix."""
 
     keyword_count = len(keywords)
-    matrix = sparse.dok_matrix((keyword_count, keyword_count), dtype=np.float64)
+    matrix = sparse.lil_matrix((keyword_count, keyword_count), dtype=np.float64)
 
     for word1, word2 in combinations_with_replacement(keywords, 2):
         word1_idx = lookup[word1]
@@ -78,12 +90,10 @@ def calc_similarities(word_vec, u, s, v):
 
     similarities = []
     for i, col in enumerate(v.transpose()):
-        likeness = (
-            np.dot(vec_in_basis, col) /
-            np.linalg.norm(vec_in_basis) * np.linalg.norm(col))
+        likeness = np.dot(vec_in_basis, col)
         similarities.append(likeness)
 
-    return similarities
+    return np.array(similarities) / max(similarities)
 
 
 def display_likeness(lookup, similarities):
@@ -99,19 +109,38 @@ if __name__ == '__main__':
 
     filename, search_term = sys.argv[1], sys.argv[2]
 
-    docs = read_document(filename)
-    keywords = set.union(*docs)
+    docs = read_tweets(filename)
+    exclude = read_exclude()
+    keywords = {
+        w for w in set.union(*docs) ^ exclude
+        if len(w) > 2 and not w.startswith('http')}
 
-    counts, associations = probabilities(keywords, docs)
+    print(len(keywords))
 
-    lookup = {word: i for i, word in enumerate(keywords)}
+    # import time
 
-    matrix = build_matrix(lookup, keywords, counts, associations)
-    u, s, v = linalg.svds(matrix, k=DIMS)
+    # start_time = time.time()
 
-    # np.savetxt('test.csv', matrix.todense(), delimiter=',')
+    # counts, associations = probabilities(keywords, docs)
 
-    word_vec = build_word_vec(lookup, search_term)
-    similarities = calc_similarities(word_vec, u, np.diag(s), v)
+    # assoc_time = time.time()
+    # print('Finished association calculations in %s secs' % (assoc_time - start_time))
 
-    display_likeness(lookup, similarities)
+    # lookup = {word: i for i, word in enumerate(keywords)}
+
+    # matrix = build_matrix(lookup, keywords, counts, associations)
+
+    # matrix_time = time.time()
+    # print('Finished building matrix in %s secs' % (matrix_time - assoc_time))
+
+    # u, s, v = linalg.svds(matrix, k=DIMS)
+
+    # svd_time = time.time()
+    # print('Finished SVD in %s secs' % (svd_time - matrix_time))
+
+    # # np.savetxt('test.csv', matrix.todense(), delimiter=',')
+
+    # word_vec = build_word_vec(lookup, search_term)
+    # similarities = calc_similarities(word_vec, u, np.diag(s), v)
+
+    # display_likeness(lookup, similarities)
