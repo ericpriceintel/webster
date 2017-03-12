@@ -5,18 +5,17 @@ import string
 import sys
 
 import numpy as np
-from scipy import sparse
-from scipy.sparse import linalg
+from scipy import sparse, io
 
 
-DIMS = 100
 EXCLUDE_DIR = 'exclude.txt'
-MAX_RESULTS = 50
+MATRIX_DIR = 'ppmi_matrix.mtx'
+KEYWORD_DIR = 'ppmi_word_list.txt'
 
 
-def read_tweets(filename):
+def read_tweets(tweet_dir):
 
-    with open(filename) as f:
+    with open(tweet_dir) as f:
         tweets = map(lambda s: s.strip().split(), f.readlines())
         table = str.maketrans('', '', string.punctuation + string.digits)
         docs = [
@@ -81,41 +80,24 @@ def build_matrix(lookup, keywords, counts, assocs):
     return matrix
 
 
-def build_word_vec(lookup, word):
-    vec = np.zeros(len(lookup))
-    word_idx = lookup[word]
+def save(lookup, matrix):
+    """Save the matrix and word ordering for later use.
 
-    vec[word_idx] = 1
-    return vec
+    Forgoes the need to compute the PPMI matrix on each run.
+    """
+    reverse_lookup = {i: word for word, i in lookup.items()}
+    word_list = ','.join([reverse_lookup[i] for i in range(len(keywords))])
 
-
-def calc_similarities(word_vec, u, s, v):
-    """Find the closest vectors."""
-
-    vec_in_basis = np.dot(np.dot(s, u.transpose()), word_vec)
-
-    similarities = []
-    for i, col in enumerate(v.transpose()):
-        likeness = np.dot(vec_in_basis, col)
-        similarities.append(likeness)
-
-    return np.array(similarities) / max(similarities)
-
-
-def display_likeness(lookup, similarities):
-    idx_lookup = {idx: word for word, idx in lookup.items()}
-    ordered = [
-        (idx_lookup[i], likeness) for i, likeness in enumerate(similarities)]
-
-    for word, likeness in sorted(ordered, key=lambda x: x[1], reverse=True)[:MAX_RESULTS]:
-        print(word, likeness)
+    io.mmwrite(MATRIX_DIR, matrix)
+    with open(KEYWORD_DIR, 'w') as f:
+        f.write(word_list)
 
 
 if __name__ == '__main__':
 
-    filename, search_term = sys.argv[1], sys.argv[2]
+    tweet_dir = sys.argv[1]
 
-    docs = read_tweets(filename)
+    docs = read_tweets(tweet_dir)
     exclude = read_exclude()
     keywords = {
         w for w in set.union(*docs) - exclude
@@ -126,14 +108,6 @@ if __name__ == '__main__':
     counts, associations = probabilities(keywords, docs)
 
     lookup = {word: i for i, word in enumerate(keywords)}
-
     matrix = build_matrix(lookup, keywords, counts, associations)
 
-    u, s, v = linalg.svds(matrix, k=DIMS)
-
-    # np.savetxt('test.csv', matrix.todense(), delimiter=',')
-
-    word_vec = build_word_vec(lookup, search_term)
-    similarities = calc_similarities(word_vec, u, np.diag(s), v)
-
-    display_likeness(lookup, similarities)
+    save(lookup, matrix)
