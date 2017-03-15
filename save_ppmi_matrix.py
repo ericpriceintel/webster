@@ -8,15 +8,15 @@ import numpy as np
 from scipy import sparse, io
 
 
-EXCLUDE_DIR = 'exclude.txt'
-MATRIX_DIR = 'ppmi_matrix.mtx'
-KEYWORD_DIR = 'ppmi_word_list.txt'
+EXCLUDE_DIR = 'documents/exclude.txt'
+MATRIX_DIR = 'matrices/%s_matrix.mtx'
+KEYWORD_DIR = 'matrices/%s_word_list.txt'
 
 
-def read_tweets(tweet_dir):
+def read_tweets(text_dir):
 
-    with open(tweet_dir) as f:
-        tweets = map(lambda s: s.strip().split(), f.readlines())
+    with open(text_dir) as f:
+        tweets = map(lambda s: s.strip().split(','), f.readlines())
         table = str.maketrans('', '', string.punctuation + string.digits)
         docs = [
             set(map(lambda s: s.lower().translate(table), tweet))
@@ -80,7 +80,7 @@ def build_matrix(lookup, keywords, counts, assocs):
     return matrix
 
 
-def save(lookup, matrix):
+def save(lookup, matrix, prefix):
     """Save the matrix and word ordering for later use.
 
     Forgoes the need to compute the PPMI matrix on each run.
@@ -88,16 +88,16 @@ def save(lookup, matrix):
     reverse_lookup = {i: word for word, i in lookup.items()}
     word_list = ','.join([reverse_lookup[i] for i in range(len(keywords))])
 
-    io.mmwrite(MATRIX_DIR, matrix)
-    with open(KEYWORD_DIR, 'w') as f:
+    io.mmwrite(MATRIX_DIR % prefix, matrix)
+    with open(KEYWORD_DIR % prefix, 'w') as f:
         f.write(word_list)
 
 
 if __name__ == '__main__':
 
-    tweet_dir = sys.argv[1]
+    text_dir, prefix = sys.argv[1], sys.argv[2]
 
-    docs = read_tweets(tweet_dir)
+    docs = read_tweets(text_dir)
     exclude = read_exclude()
     keywords = {
         w for w in set.union(*docs) - exclude
@@ -107,7 +107,10 @@ if __name__ == '__main__':
 
     counts, associations = probabilities(keywords, docs)
 
+    ordered = [(word, count) for word, count in counts.items()]
+    ordered = sorted(ordered, key=lambda x: x[1], reverse=True)
+
     lookup = {word: i for i, word in enumerate(keywords)}
     matrix = build_matrix(lookup, keywords, counts, associations)
 
-    save(lookup, matrix)
+    save(lookup, matrix, prefix)
