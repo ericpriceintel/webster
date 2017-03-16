@@ -62,6 +62,10 @@ if __name__ == '__main__':
 
     matrix, lookup = load(matrix_dir, keyword_dir)
 
+    if search_term not in lookup:
+        print('Keyword not included in the document corpus!')
+        sys.exit(0)
+
     u, s, v = linalg.svds(matrix, k=DIMS)
     s = np.diag(s)
 
