@@ -34,7 +34,7 @@ def calc_similarities(word_vec, v):
     """Find the closest vectors."""
 
     similarities = []
-    for i, col in enumerate(v.transpose()):
+    for col in v.transpose():
         likeness = np.dot(word_vec, col)
         similarities.append(likeness)
 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     matrix, lookup = load(matrix_dir, keyword_dir)
 
     u, s, v = linalg.svds(matrix, k=DIMS)
-    s = np.diag(np.sqrt(s))
+    s = np.diag(s)
 
     word_vec = build_word_vec(lookup, search_term, u, s)
     similarities = calc_similarities(word_vec, v)
