@@ -16,7 +16,7 @@ KEYWORD_DIR = 'matrices/%s_word_list.txt'
 def read_tweets(text_dir):
 
     with open(text_dir) as f:
-        tweets = map(lambda s: s.strip().split(','), f.readlines())
+        tweets = map(lambda s: s.strip().split(), f.readlines())
         table = str.maketrans('', '', string.punctuation + string.digits)
         docs = [
             set(map(lambda s: s.lower().translate(table), tweet))
